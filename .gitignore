@@ -6,3 +6,6 @@
 /public/dist
 /review/elm-stuff/
 /public/blog/drafts/
+
+# ignore vim swap files
+**/*.swp
