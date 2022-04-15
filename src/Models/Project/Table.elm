@@ -19,7 +19,10 @@ import Models.Project.SchemaName as SchemaName exposing (SchemaName)
 import Models.Project.TableId exposing (TableId)
 import Models.Project.TableName as TableName exposing (TableName)
 import Models.Project.Unique as Unique exposing (Unique)
-import Services.Lenses exposing (mapChecks, mapColumns, mapCommentM, mapIndexes, mapPrimaryKeyM, mapUniques, setOrigins)
+import Services.Lenses exposing (mapChecks, mapCommentM, mapIndexes)
+import Accessors.Library exposing (onEach, try)
+import Accessors.Lazy exposing (set)
+import Accessors exposing (makeOneToOne, makeOneToN, Relation)
 
 
 type alias Table =
@@ -97,13 +100,50 @@ merge t1 t2 =
 clearOrigins : Table -> Table
 clearOrigins table =
     table
-        |> setOrigins []
-        |> mapColumns (Ned.map (\_ -> Column.clearOrigins))
-        |> mapPrimaryKeyM PrimaryKey.clearOrigins
-        |> mapUniques (List.map Unique.clearOrigins)
+        |> set origins_ []
+        |> set (columns_ << allEntries << origins_) []
+        |> set (columns_ << allEntries << comment_ << try << origins_) []
+        |> set (primaryKey_ << try << origins_) []
+        |> set (uniques_ << onEach << origins_) []
         |> mapIndexes (List.map Index.clearOrigins)
         |> mapChecks (List.map Check.clearOrigins)
         |> mapCommentM Comment.clearOrigins
+
+primaryKey_ : Relation sub r w -> Relation { a | primaryKey : sub } r w
+primaryKey_ =
+  makeOneToOne
+    .primaryKey
+    (\change record -> {record | primaryKey = change record.primaryKey})
+
+columns_ : Relation sub r w -> Relation { a | columns : sub } r w
+columns_ =
+  makeOneToOne
+    .columns
+    (\change record -> {record | columns = change record.columns})
+
+comment_ : Relation sub r w -> Relation { a | comment : sub } r w
+comment_ =
+  makeOneToOne
+    .comment
+    (\change record -> {record | comment = change record.comment})
+
+uniques_ : Relation sub r w -> Relation { a | uniques : sub } r w
+uniques_ =
+  makeOneToOne
+    .uniques
+    (\change record -> {record | uniques = change record.uniques})
+
+origins_ : Relation sub r w -> Relation { a | origins : sub } r w
+origins_ =
+  makeOneToOne
+    .origins
+    (\change record -> {record | origins = change record.origins})
+
+allEntries : Relation sub r subWrap -> Relation (Ned k sub) r (Ned k subWrap)
+allEntries =
+  makeOneToN
+    (\f -> Ned.map (\_ -> f))
+    (\f -> Ned.map (\_ -> f))
 
 
 encode : Table -> Value
